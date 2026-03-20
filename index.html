@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <title>Cámara Fija - RICARDOCASTELLAR</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body style="background: #121212; color: #00ff00; font-family: 'Courier New', monospace; text-align: center; padding-top: 50px;">
+    
+    <h2>SISTEMA DE MONITOREO ACTIVO</h2>
+    <div style="border: 2px solid #00ff00; display: inline-block; padding: 10px; border-radius: 10px;">
+        <video id="localVideo" autoplay playsinline muted style="width: 400px; background: black;"></video>
+    </div>
+    <p>ID de Transmisión: <strong>RICARDOCASTELLAR</strong></p>
+    <p id="status">Iniciando cámara...</p>
+
+    <script>
+        const videoElement = document.getElementById('localVideo');
+        const status = document.getElementById('status');
+
+        // Configuramos el ID fijo aquí
+        const peer = new Peer('RICARDOCASTELLAR'); 
+
+        peer.on('open', (id) => {
+            status.innerText = "ONLINE: Esperando conexión del monitor...";
+            console.log('Registrado como: ' + id);
+        });
+
+        // Error si el ID ya está en uso (ej. si tienes otra pestaña abierta con lo mismo)
+        peer.on('error', (err) => {
+            if(err.type === 'unavailable-id') {
+                alert("El ID RICARDOCASTELLAR ya está en uso. Cierra otras pestañas.");
+            }
+            status.innerText = "Error: " + err.type;
+        });
+
+        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+            .then((stream) => {
+                videoElement.srcObject = stream;
+                
+                // Responder automáticamente a las llamadas
+                peer.on('call', (call) => {
+                    console.log("Recibiendo petición de monitoreo...");
+                    call.answer(stream); 
+                });
+            })
+            .catch(err => {
+                status.innerText = "Error de cámara: " + err;
+            });
+    </script>
+</body>
+</html>

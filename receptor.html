@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <title>Panel de Control - Monitor</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+<body style="background: #000; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 20px;">
+    
+    <h1 style="color: #4CAF50;">Monitor Remoto</h1>
+    <video id="remoteVideo" autoplay playsinline style="width: 90%; max-height: 70vh; border: 3px solid #333; border-radius: 15px; box-shadow: 0 0 20px rgba(0,255,0,0.2);"></video>
+    
+    <div style="margin-top: 20px;">
+        <button onclick="conectar()" style="padding: 15px 40px; font-size: 18px; cursor: pointer; background: #4CAF50; color: white; border: none; border-radius: 5px;">
+            VER CÁMARA EN VIVO
+        </button>
+    </div>
+    <p id="info" style="color: #888;">Listo para conectar con RICARDOCASTELLAR</p>
+
+    <script>
+        const remoteVideo = document.getElementById('remoteVideo');
+        const info = document.getElementById('info');
+        const peer = new Peer(); // El ID del monitor puede ser aleatorio
+
+        function conectar() {
+            info.innerText = "Llamando a la cámara...";
+            
+            // Llamamos directamente al ID fijo
+            const call = peer.call('RICARDOCASTELLAR', new MediaStream());
+
+            call.on('stream', (remoteStream) => {
+                info.innerText = "CONECTADO: Transmisión en tiempo real";
+                remoteVideo.srcObject = remoteStream;
+            });
+
+            call.on('error', (err) => {
+                info.innerText = "Error en la conexión: " + err;
+            });
+        }
+    </script>
+</body>
+</html>
