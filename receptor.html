@@ -3,115 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control - RICARDOCASTELLAR</title>
+    <title>Monitor - RICARDOCASTELLAR</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
-        body {
-            background-color: #000;
-            color: #fff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-        }
-        #monitor-container {
-            width: 90%;
-            max-width: 800px;
-            border: 2px solid #333;
-            border-radius: 10px;
-            overflow: hidden;
-            background: #111;
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.1);
-        }
-        video {
-            width: 100%;
-            display: block;
-            background: #000;
-        }
-        .controls {
-            padding: 20px;
-            text-align: center;
-        }
-        button {
-            background-color: #28a745;
-            color: white;
-            border: none;
-            padding: 12px 30px;
-            font-size: 18px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-        button:hover {
-            background-color: #218838;
-        }
-        #status {
-            margin-top: 15px;
-            color: #888;
-            font-size: 14px;
-        }
+        body { background: #111; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
+        #video-wrap { width: 100%; max-width: 700px; margin: auto; position: relative; }
+        video { width: 100%; border-radius: 15px; background: #000; box-shadow: 0 0 20px rgba(0,255,0,0.2); }
+        button { background: #28a745; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 50px; cursor: pointer; margin-top: 15px; font-weight: bold; }
+        #log { color: #888; font-size: 13px; margin-top: 10px; }
     </style>
 </head>
 <body>
-
-    <div id="monitor-container">
-        <video id="remoteVideo" autoplay playsinline muted></video>
-        
-        <div class="controls">
-            <button id="connectBtn">CONECTAR AL SITIO</button>
-            <p id="status">Estado: Listo para conectar con RICARDOCASTELLAR</p>
-        </div>
+    <h3>PANEL DE VIGILANCIA</h3>
+    <div id="video-wrap">
+        <video id="remoteVideo" autoplay playsinline></video>
     </div>
+    <button onclick="iniciarMonitoreo()">CONECTAR AHORA</button>
+    <p id="log">Listo para conectar con RICARDOCASTELLAR</p>
 
     <script>
         const remoteVideo = document.getElementById('remoteVideo');
-        const status = document.getElementById('status');
-        const connectBtn = document.getElementById('connectBtn');
+        const log = document.getElementById('log');
 
-        // Configuración con servidores STUN para conectar a través de internet (fuera de red local)
-        const peer = new Peer({
-            config: {
-                'iceServers': [
-                    { url: 'stun:stun.l.google.com:19302' },
-                    { url: 'stun:stun1.l.google.com:19302' },
-                    { url: 'stun:stun2.l.google.com:19302' }
-                ]
-            }
-        });
+        // Peer aleatorio para el monitor (no necesita ID fijo)
+        const peer = new Peer();
 
-        connectBtn.addEventListener('click', () => {
-            status.innerText = "Buscando cámara: RICARDOCASTELLAR...";
+        function iniciarMonitoreo() {
+            log.innerText = "Llamando a la cámara...";
             
-            // Llamamos a la cámara. Enviamos un flujo vacío porque solo queremos recibir.
+            // Llamamos al ID fijo de la cámara
             const call = peer.call('RICARDOCASTELLAR', new MediaStream());
 
             call.on('stream', (remoteStream) => {
-                status.innerText = "¡CONEXIÓN ESTABLECIDA!";
-                status.style.color = "#28a745";
-                
-                // Asignamos el video
+                log.innerText = "CONECTADO - TRANSMITIENDO";
+                log.style.color = "#0f0";
                 remoteVideo.srcObject = remoteStream;
-                
-                // Intentamos quitar el 'muted' después de conectar
-                remoteVideo.muted = false; 
-                remoteVideo.play().catch(e => console.warn("Autoplay bloqueó el audio, pero el video debería verse."));
             });
 
             call.on('error', (err) => {
-                status.innerText = "Error: " + err.type;
-                status.style.color = "#ff4444";
-                console.error(err);
+                log.innerText = "Error: " + err.type;
+                log.style.color = "red";
             });
-        });
-
-        // Detectar si la cámara se desconecta
-        peer.on('disconnected', () => {
-            status.innerText = "Cámara desconectada.";
-            status.style.color = "#ff4444";
-        });
+        }
     </script>
 </body>
-</html>
+</html>.

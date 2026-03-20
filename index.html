@@ -1,50 +1,54 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <title>Cámara Fija - RICARDOCASTELLAR</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cámara - RICARDOCASTELLAR</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding: 20px; }
+        video { width: 100%; max-width: 500px; border: 2px solid #0f0; border-radius: 10px; filter: grayscale(50%); }
+        .status-box { margin-top: 20px; padding: 10px; border: 1px solid #333; display: inline-block; }
+    </style>
 </head>
-<body style="background: #121212; color: #00ff00; font-family: 'Courier New', monospace; text-align: center; padding-top: 50px;">
-    
-    <h2>SISTEMA DE MONITOREO ACTIVO</h2>
-    <div style="border: 2px solid #00ff00; display: inline-block; padding: 10px; border-radius: 10px;">
-        <video id="localVideo" autoplay playsinline muted style="width: 400px; background: black;"></video>
+<body>
+    <h2>TRANSMISOR ACTIVO</h2>
+    <video id="localVideo" autoplay playsinline muted></video>
+    <div class="status-box">
+        ID: <strong id="myId">RICARDOCASTELLAR</strong><br>
+        Estado: <span id="status">Iniciando...</span>
     </div>
-    <p>ID de Transmisión: <strong>RICARDOCASTELLAR</strong></p>
-    <p id="status">Iniciando cámara...</p>
 
     <script>
-        const videoElement = document.getElementById('localVideo');
         const status = document.getElementById('status');
+        const videoElement = document.getElementById('localVideo');
 
-        // Configuramos el ID fijo aquí
-        const peer = new Peer('RICARDOCASTELLAR'); 
+        // Configuración de PeerJS con el ID fijo
+        const peer = new Peer('RICARDOCASTELLAR');
 
         peer.on('open', (id) => {
-            status.innerText = "ONLINE: Esperando conexión del monitor...";
-            console.log('Registrado como: ' + id);
+            status.innerText = "ONLINE - Esperando Monitor";
+            status.style.color = "#0f0";
         });
 
-        // Error si el ID ya está en uso (ej. si tienes otra pestaña abierta con lo mismo)
         peer.on('error', (err) => {
-            if(err.type === 'unavailable-id') {
-                alert("El ID RICARDOCASTELLAR ya está en uso. Cierra otras pestañas.");
-            }
-            status.innerText = "Error: " + err.type;
+            status.innerText = "ERROR: " + err.type;
+            status.style.color = "red";
+            if(err.type === 'unavailable-id') alert("ID ocupado. Cierra otras pestañas.");
         });
 
+        // Acceder a la cámara
         navigator.mediaDevices.getUserMedia({ video: true, audio: false })
             .then((stream) => {
                 videoElement.srcObject = stream;
-                
-                // Responder automáticamente a las llamadas
+                // Responder llamadas automáticamente enviando el video
                 peer.on('call', (call) => {
-                    console.log("Recibiendo petición de monitoreo...");
-                    call.answer(stream); 
+                    console.log("Recibiendo llamada...");
+                    call.answer(stream);
                 });
             })
             .catch(err => {
-                status.innerText = "Error de cámara: " + err;
+                status.innerText = "Error de cámara: " + err.name;
             });
     </script>
 </body>
