@@ -3,57 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cámara - RICARDOCASTELLAR</title>
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <title>Sistema de Monitoreo Pro - Ricardo</title>
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.11.0.js"></script>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding: 20px; }
-        video { width: 100%; max-width: 400px; border: 2px solid #0f0; border-radius: 10px; background: #111; }
-        .info { margin-top: 15px; border: 1px solid #333; padding: 10px; display: inline-block; }
+        body { background: #0a0a0a; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; }
+        #video-container { width: 100%; max-width: 640px; height: 360px; background: #000; margin: 20px auto; border: 2px solid #333; border-radius: 12px; overflow: hidden; position: relative; }
+        .controls { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+        button { width: 280px; padding: 18px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        .cam-btn { background: #ff4757; color: white; }
+        .mon-btn { background: #2ed573; color: white; }
+        #status { margin-top: 15px; color: #aaa; font-size: 14px; }
+        video { object-fit: cover !important; }
     </style>
 </head>
 <body>
-    <h3>ESTACIÓN DE TRANSMISIÓN</h3>
-    <video id="localVideo" autoplay playsinline muted></video>
-    <div class="info">
-        ID: <strong>RICARDOCASTELLAR</strong><br>
-        Estado: <span id="status">Iniciando...</span>
+
+    <h2 style="color: #00ff88;">SISTEMA DE VIGILANCIA</h2>
+    
+    <div id="video-container">
+        </div>
+
+    <div class="controls">
+        <button class="cam-btn" onclick="iniciarCamara()">1. ACTIVAR COMO CÁMARA</button>
+        <button class="mon-btn" onclick="iniciarMonitor()">2. ENTRAR COMO MONITOR</button>
     </div>
 
+    <p id="status">Esperando acción...</p>
+
     <script>
-        const status = document.getElementById('status');
-        const videoElement = document.getElementById('localVideo');
+        // Tu App ID configurado
+        const APP_ID = "4c0f8c14a76d4a33a53972aaa48519a4"; 
+        const CHANNEL = "canal_monitoreo"; // Nombre del canal privado
+        
+        const client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
+        let localTracks = { videoTrack: null };
 
-        // Configuración con servidores STUN de Google integrados
-        const peer = new Peer('RICARDOCASTELLAR', {
-            config: {'iceServers': [
-                { url: 'stun:stun.l.google.com:19302' },
-                { url: 'stun:stun1.l.google.com:19302' }
-            ]}
-        });
+        async function iniciarCamara() {
+            try {
+                document.getElementById('status').innerText = "Iniciando cámara...";
+                // Configuramos como emisor
+                await client.setClientRole("host");
+                await client.join(APP_ID, CHANNEL, null);
+                
+                // Creamos la pista de video
+                localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack();
+                
+                // Mostramos el video localmente
+                localTracks.videoTrack.play("video-container");
+                
+                // Publicamos para que otros lo vean
+                await client.publish([localTracks.videoTrack]);
+                
+                document.getElementById('status').innerText = "TRANSMITIENDO EN VIVO (Deja este móvil aquí)";
+                document.getElementById('status').style.color = "#ff4757";
+            } catch (e) {
+                console.error(e);
+                alert("Error: Asegúrate de dar permisos a la cámara y usar HTTPS.");
+            }
+        }
 
-        peer.on('open', (id) => {
-            status.innerText = "ONLINE - ESPERANDO MONITOR";
-            status.style.color = "#0f0";
-        });
+        async function iniciarMonitor() {
+            try {
+                document.getElementById('status').innerText = "Conectando al servidor...";
+                // Configuramos como audiencia
+                await client.setClientRole("audience");
+                await client.join(APP_ID, CHANNEL, null);
 
-        peer.on('error', (err) => {
-            status.innerText = "Error: " + err.type;
-            status.style.color = "red";
-        });
-
-        // Solicitar cámara
-        navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-            .then((stream) => {
-                videoElement.srcObject = stream;
-                // Responder automáticamente cuando el monitor llame
-                peer.on('call', (call) => {
-                    console.log("Recibiendo petición de monitoreo...");
-                    call.answer(stream);
+                // Escuchamos cuando alguien empiece a transmitir
+                client.on("user-published", async (user, mediaType) => {
+                    await client.subscribe(user, mediaType);
+                    if (mediaType === "video") {
+                        document.getElementById('status').innerText = "MONITOREO ACTIVO";
+                        document.getElementById('status').style.color = "#2ed573";
+                        user.videoTrack.play("video-container");
+                    }
                 });
-            })
-            .catch(err => {
-                status.innerText = "Error de cámara: " + err.name;
-            });
+
+                document.getElementById('status').innerText = "Buscando señal de la cámara...";
+            } catch (e) {
+                console.error(e);
+                alert("Error al conectar al monitor.");
+            }
+        }
     </script>
 </body>
 </html>
