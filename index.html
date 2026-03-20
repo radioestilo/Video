@@ -3,87 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Monitoreo Pro - Ricardo</title>
+    <title>Monitoreo Total - Ricardo</title>
     <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.11.0.js"></script>
     <style>
-        body { background: #0a0a0a; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; margin: 0; padding: 20px; }
-        #video-container { width: 100%; max-width: 640px; height: 360px; background: #000; margin: 20px auto; border: 2px solid #333; border-radius: 12px; overflow: hidden; position: relative; }
-        .controls { display: flex; flex-direction: column; gap: 10px; align-items: center; }
-        button { width: 280px; padding: 18px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        body { background: #0a0a0a; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; padding: 15px; margin: 0; }
+        #video-container { width: 100%; max-width: 640px; height: 360px; background: #000; margin: 15px auto; border: 2px solid #00ff88; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 0 20px rgba(0, 255, 136, 0.2); }
+        .controls { display: flex; flex-direction: column; gap: 12px; align-items: center; margin-top: 10px; }
+        button { width: 280px; padding: 16px; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         .cam-btn { background: #ff4757; color: white; }
         .mon-btn { background: #2ed573; color: white; }
-        #status { margin-top: 15px; color: #aaa; font-size: 14px; }
+        .audio-btn { background: #1e90ff; color: white; display: none; }
+        #status { margin-top: 15px; color: #aaa; font-size: 14px; font-weight: bold; }
         video { object-fit: cover !important; }
     </style>
 </head>
 <body>
 
-    <h2 style="color: #00ff88;">SISTEMA DE VIGILANCIA</h2>
+    <h2 style="color: #00ff88;">SISTEMA DE VIGILANCIA TOTAL</h2>
     
     <div id="video-container">
         </div>
 
     <div class="controls">
         <button class="cam-btn" onclick="iniciarCamara()">1. ACTIVAR COMO CÁMARA</button>
+        <hr style="width: 280px; border: 0.5px solid #333;">
         <button class="mon-btn" onclick="iniciarMonitor()">2. ENTRAR COMO MONITOR</button>
+        <button id="audioBtn" class="audio-btn" onclick="activarAudio()">🔊 ACTIVAR SONIDO</button>
     </div>
 
-    <p id="status">Esperando acción...</p>
+    <p id="status">Esperando conexión...</p>
 
     <script>
-        // Tu App ID configurado
         const APP_ID = "4c0f8c14a76d4a33a53972aaa48519a4"; 
-        const CHANNEL = "canal_monitoreo"; // Nombre del canal privado
+        const CHANNEL = "canal_monitoreo_ricardo";
         
         const client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
-        let localTracks = { videoTrack: null };
+        let localTracks = { videoTrack: null, audioTrack: null };
+        let remoteUser = null;
 
+        // --- MODO TRANSMISOR (LA CÁMARA) ---
         async function iniciarCamara() {
             try {
-                document.getElementById('status').innerText = "Iniciando cámara...";
-                // Configuramos como emisor
+                actualizarEstado("Iniciando cámara y micrófono...", "yellow");
                 await client.setClientRole("host");
                 await client.join(APP_ID, CHANNEL, null);
                 
-                // Creamos la pista de video
+                // Creamos video Y audio
+                localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
                 localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack();
                 
-                // Mostramos el video localmente
                 localTracks.videoTrack.play("video-container");
                 
-                // Publicamos para que otros lo vean
-                await client.publish([localTracks.videoTrack]);
+                // Publicamos ambos
+                await client.publish([localTracks.audioTrack, localTracks.videoTrack]);
                 
-                document.getElementById('status').innerText = "TRANSMITIENDO EN VIVO (Deja este móvil aquí)";
-                document.getElementById('status').style.color = "#ff4757";
+                actualizarEstado("EN VIVO: Transmitiendo video y audio", "#ff4757");
             } catch (e) {
                 console.error(e);
-                alert("Error: Asegúrate de dar permisos a la cámara y usar HTTPS.");
+                alert("Error al acceder a los dispositivos. Revisa los permisos.");
             }
         }
 
+        // --- MODO RECEPTOR (EL MONITOR) ---
         async function iniciarMonitor() {
             try {
-                document.getElementById('status').innerText = "Conectando al servidor...";
-                // Configuramos como audiencia
+                actualizarEstado("Conectando al canal...", "yellow");
                 await client.setClientRole("audience");
                 await client.join(APP_ID, CHANNEL, null);
 
-                // Escuchamos cuando alguien empiece a transmitir
                 client.on("user-published", async (user, mediaType) => {
                     await client.subscribe(user, mediaType);
+                    remoteUser = user;
+
                     if (mediaType === "video") {
-                        document.getElementById('status').innerText = "MONITOREO ACTIVO";
-                        document.getElementById('status').style.color = "#2ed573";
+                        actualizarEstado("VIGILANCIA ACTIVA", "#2ed573");
                         user.videoTrack.play("video-container");
+                    }
+                    if (mediaType === "audio") {
+                        // Mostramos el botón para activar el sonido manualmente
+                        document.getElementById('audioBtn').style.display = "block";
                     }
                 });
 
-                document.getElementById('status').innerText = "Buscando señal de la cámara...";
+                actualizarEstado("Buscando señal...", "#aaa");
             } catch (e) {
                 console.error(e);
-                alert("Error al conectar al monitor.");
+                alert("Error en el monitor.");
             }
+        }
+
+        function activarAudio() {
+            if (remoteUser && remoteUser.audioTrack) {
+                remoteUser.audioTrack.play();
+                document.getElementById('audioBtn').innerText = "🔊 AUDIO ACTIVADO";
+                document.getElementById('audioBtn').style.background = "#57606f";
+            }
+        }
+
+        function actualizarEstado(txt, color) {
+            const s = document.getElementById('status');
+            s.innerText = txt;
+            s.style.color = color;
         }
     </script>
 </body>
