@@ -7,15 +7,15 @@
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding: 20px; }
-        video { width: 100%; max-width: 500px; border: 2px solid #0f0; border-radius: 10px; filter: grayscale(50%); }
-        .status-box { margin-top: 20px; padding: 10px; border: 1px solid #333; display: inline-block; }
+        video { width: 100%; max-width: 400px; border: 2px solid #0f0; border-radius: 10px; background: #111; }
+        .info { margin-top: 15px; border: 1px solid #333; padding: 10px; display: inline-block; }
     </style>
 </head>
 <body>
-    <h2>TRANSMISOR ACTIVO</h2>
+    <h3>ESTACIÓN DE TRANSMISIÓN</h3>
     <video id="localVideo" autoplay playsinline muted></video>
-    <div class="status-box">
-        ID: <strong id="myId">RICARDOCASTELLAR</strong><br>
+    <div class="info">
+        ID: <strong>RICARDOCASTELLAR</strong><br>
         Estado: <span id="status">Iniciando...</span>
     </div>
 
@@ -23,27 +23,31 @@
         const status = document.getElementById('status');
         const videoElement = document.getElementById('localVideo');
 
-        // Configuración de PeerJS con el ID fijo
-        const peer = new Peer('RICARDOCASTELLAR');
+        // Configuración con servidores STUN de Google integrados
+        const peer = new Peer('RICARDOCASTELLAR', {
+            config: {'iceServers': [
+                { url: 'stun:stun.l.google.com:19302' },
+                { url: 'stun:stun1.l.google.com:19302' }
+            ]}
+        });
 
         peer.on('open', (id) => {
-            status.innerText = "ONLINE - Esperando Monitor";
+            status.innerText = "ONLINE - ESPERANDO MONITOR";
             status.style.color = "#0f0";
         });
 
         peer.on('error', (err) => {
-            status.innerText = "ERROR: " + err.type;
+            status.innerText = "Error: " + err.type;
             status.style.color = "red";
-            if(err.type === 'unavailable-id') alert("ID ocupado. Cierra otras pestañas.");
         });
 
-        // Acceder a la cámara
+        // Solicitar cámara
         navigator.mediaDevices.getUserMedia({ video: true, audio: false })
             .then((stream) => {
                 videoElement.srcObject = stream;
-                // Responder llamadas automáticamente enviando el video
+                // Responder automáticamente cuando el monitor llame
                 peer.on('call', (call) => {
-                    console.log("Recibiendo llamada...");
+                    console.log("Recibiendo petición de monitoreo...");
                     call.answer(stream);
                 });
             })

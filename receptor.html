@@ -6,43 +6,53 @@
     <title>Monitor - RICARDOCASTELLAR</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
-        body { background: #111; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 10px; }
-        #video-wrap { width: 100%; max-width: 700px; margin: auto; position: relative; }
-        video { width: 100%; border-radius: 15px; background: #000; box-shadow: 0 0 20px rgba(0,255,0,0.2); }
-        button { background: #28a745; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 50px; cursor: pointer; margin-top: 15px; font-weight: bold; }
-        #log { color: #888; font-size: 13px; margin-top: 10px; }
+        body { background: #111; color: white; font-family: sans-serif; text-align: center; padding: 10px; }
+        video { width: 100%; max-width: 600px; border-radius: 10px; background: #000; border: 2px solid #444; }
+        button { background: #28a745; color: white; border: none; padding: 15px 30px; font-size: 18px; border-radius: 5px; cursor: pointer; margin-top: 15px; width: 100%; max-width: 300px; }
+        #log { margin-top: 15px; color: #aaa; font-size: 14px; border: 1px solid #333; padding: 10px; height: 60px; overflow: hidden; }
     </style>
 </head>
 <body>
-    <h3>PANEL DE VIGILANCIA</h3>
-    <div id="video-wrap">
-        <video id="remoteVideo" autoplay playsinline></video>
-    </div>
+    <h3>PANEL DE MONITOREO</h3>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <br>
     <button onclick="iniciarMonitoreo()">CONECTAR AHORA</button>
-    <p id="log">Listo para conectar con RICARDOCASTELLAR</p>
+    <div id="log">Estado: Listo para conectar</div>
 
     <script>
         const remoteVideo = document.getElementById('remoteVideo');
         const log = document.getElementById('log');
 
-        // Peer aleatorio para el monitor (no necesita ID fijo)
-        const peer = new Peer();
+        // Configuración con servidores STUN de Google para saltar bloqueos de red
+        const peer = new Peer({
+            config: {'iceServers': [
+                { url: 'stun:stun.l.google.com:19302' },
+                { url: 'stun:stun1.l.google.com:19302' },
+                { url: 'stun:stun2.l.google.com:19302' }
+            ]}
+        });
 
         function iniciarMonitoreo() {
-            log.innerText = "Llamando a la cámara...";
+            log.innerText = "Llamando a RICARDOCASTELLAR...";
+            log.style.color = "yellow";
             
-            // Llamamos al ID fijo de la cámara
+            // Llamada forzada
             const call = peer.call('RICARDOCASTELLAR', new MediaStream());
 
             call.on('stream', (remoteStream) => {
-                log.innerText = "CONECTADO - TRANSMITIENDO";
+                log.innerText = "¡CONEXIÓN EXITOSA!";
                 log.style.color = "#0f0";
                 remoteVideo.srcObject = remoteStream;
+                remoteVideo.play();
             });
 
-            call.on('error', (err) => {
-                log.innerText = "Error: " + err.type;
+            peer.on('error', (err) => {
                 log.style.color = "red";
+                if(err.type === 'peer-unavailable') {
+                    log.innerText = "ERROR: La cámara no está abierta en el otro dispositivo.";
+                } else {
+                    log.innerText = "Error: " + err.type;
+                }
             });
         }
     </script>
