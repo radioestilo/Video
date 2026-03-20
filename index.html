@@ -14,21 +14,22 @@
             display: flex; 
             flex-direction: column; 
             height: 100vh;
+            overflow: hidden;
         }
 
-        /* Contenedor dinámico de cuadrícula */
+        /* Cuadrícula de 2 columnas fijas como solicitaste */
         #video-grid { 
             display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            grid-template-columns: repeat(2, 1fr); 
             gap: 10px; 
             padding: 10px; 
             flex-grow: 1;
             background: #111;
-            align-content: center;
-            justify-content: center;
+            overflow-y: auto;
+            align-content: start;
         }
 
-        /* Estilo para cada cuadro de video (Relación 1:1) */
+        /* Cuadros 1:1 que cubren el 50% del ancho cada uno */
         .video-player { 
             width: 100%; 
             aspect-ratio: 1 / 1; 
@@ -41,26 +42,65 @@
 
         video { object-fit: cover !important; }
 
-        .controls { 
+        /* Controles individuales por usuario */
+        .user-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 10;
+            display: flex;
+            gap: 5px;
+        }
+
+        .mute-btn {
+            background: rgba(255, 71, 87, 0.8);
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        /* Botón con destellos de colores */
+        .join-container {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+        }
+
+        .join-btn { 
+            padding: 20px 40px; 
+            border: none; 
+            border-radius: 50px; 
+            font-weight: bold; 
+            font-size: 18px;
+            cursor: pointer;
+            color: white;
+            background: #000;
+            position: relative;
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0% { box-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000; }
+            33% { box-shadow: 0 0 15px #00ff00, 0 0 30px #00ff00; }
+            66% { box-shadow: 0 0 15px #0000ff, 0 0 30px #0000ff; }
+            100% { box-shadow: 0 0 10px #ff0000, 0 0 20px #ff0000; }
+        }
+
+        .controls-bar { 
             background: #1a1a1a; 
-            padding: 20px; 
+            padding: 15px; 
             display: flex; 
             justify-content: center; 
             gap: 20px;
             border-top: 1px solid #333;
         }
 
-        button { 
-            padding: 15px 30px; 
-            border: none; 
-            border-radius: 50px; 
-            font-weight: bold; 
-            cursor: pointer; 
-            transition: 0.3s;
-        }
-
-        .join-btn { background: #00ff88; color: #000; }
-        .leave-btn { background: #ff4757; color: white; display: none; }
+        .leave-btn { background: #ff4757; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
         
         #status { position: absolute; top: 10px; left: 10px; font-size: 12px; color: #00ff88; z-index: 10; }
     </style>
@@ -68,89 +108,134 @@
 <body>
 
     <div id="status">Desconectado</div>
-    <div id="video-grid">
-        </div>
 
-    <div class="controls">
-        <button id="joinBtn" class="join-btn" onclick="unirseASala()">UNIRSE A LA CONFERENCIA</button>
-        <button id="leaveBtn" class="leave-btn" onclick="salirDeSala()">ABANDONAR</button>
+    <div id="joinArea" class="join-container">
+        <button class="join-btn" onclick="unirseASala()">UNIRSE A LA CONFERENCIA</button>
+    </div>
+
+    <div id="video-grid"></div>
+
+    <div id="footerControls" class="controls-bar" style="display: none;">
+        <button class="leave-btn" onclick="salirDeSala()">ABANDONAR SALA</button>
     </div>
 
     <script>
         const APP_ID = "4c0f8c14a76d4a33a53972aaa48519a4"; 
         const CHANNEL = "sala_conferencias_ricardo";
         
-        // Modo 'rtc' es para conferencias grupales de baja latencia
         const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         let localTracks = { videoTrack: null, audioTrack: null };
+        let remoteUsers = {}; // Para guardar referencia a los audios remotos
 
         async function unirseASala() {
             try {
-                // 1. Unirse al canal
                 await client.join(APP_ID, CHANNEL, null);
                 
-                // 2. Crear pistas de audio y video
                 localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
                 localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack();
 
-                // 3. Crear el contenedor para MI video
-                crearContenedorVideo("local-user");
-                localTracks.videoTrack.play("local-user");
+                // Ocultar botón de inicio y mostrar controles
+                document.getElementById('joinArea').style.display = "none";
+                document.getElementById('footerControls').style.display = "flex";
 
-                // 4. Publicar mis pistas para que otros me vean/escuchen
+                // Crear mi video
+                crearContenedorVideo("local-user", true);
+                localTracks.videoTrack.play("local-user-video");
+
                 await client.publish([localTracks.audioTrack, localTracks.videoTrack]);
+                document.getElementById('status').innerText = "CONECTADO";
 
-                // Ajustar interfaz
-                document.getElementById('joinBtn').style.display = "none";
-                document.getElementById('leaveBtn').style.display = "block";
-                document.getElementById('status').innerText = "CONECTADO EN SALA";
-
-                // 5. Manejar usuarios que se unen
+                // Manejar otros usuarios
                 client.on("user-published", async (user, mediaType) => {
                     await client.subscribe(user, mediaType);
                     
                     if (mediaType === "video") {
-                        crearContenedorVideo(user.uid);
-                        user.videoTrack.play(user.uid.toString());
+                        crearContenedorVideo(user.uid, false);
+                        user.videoTrack.play(user.uid + "-video");
                     }
                     if (mediaType === "audio") {
+                        remoteUsers[user.uid] = user;
                         user.audioTrack.play();
                     }
                 });
 
-                // 6. Manejar usuarios que se van
                 client.on("user-left", (user) => {
                     const player = document.getElementById(user.uid);
                     if (player) player.remove();
+                    delete remoteUsers[user.uid];
                 });
 
             } catch (e) {
                 console.error(e);
-                alert("Error al unirse: Revisa cámara y micrófono.");
+                alert("Error de acceso.");
             }
         }
 
-        function crearContenedorVideo(id) {
+        function crearContenedorVideo(id, isLocal) {
+            const grid = document.getElementById("video-grid");
             if (document.getElementById(id)) return;
-            const videoDiv = document.createElement("div");
-            videoDiv.id = id;
-            videoDiv.className = "video-player";
-            document.getElementById("video-grid").appendChild(videoDiv);
+
+            const container = document.createElement("div");
+            container.id = id;
+            container.className = "video-player";
+
+            const videoArea = document.createElement("div");
+            videoArea.id = id + "-video";
+            videoArea.style.width = "100%";
+            videoArea.style.height = "100%";
+
+            // Botón de silenciar individual
+            const controls = document.createElement("div");
+            controls.className = "user-controls";
+            
+            const muteBtn = document.createElement("button");
+            muteBtn.className = "mute-btn";
+            muteBtn.innerText = "SILENCIAR";
+            muteBtn.onclick = () => togglemute(id, isLocal, muteBtn);
+
+            controls.appendChild(muteBtn);
+            container.appendChild(videoArea);
+            container.appendChild(controls);
+            grid.appendChild(container);
+        }
+
+        async function togglemute(id, isLocal, btn) {
+            if (isLocal) {
+                if (localTracks.audioTrack.muted) {
+                    await localTracks.audioTrack.setMuted(false);
+                    btn.innerText = "SILENCIAR";
+                    btn.style.background = "rgba(255, 71, 87, 0.8)";
+                } else {
+                    await localTracks.audioTrack.setMuted(true);
+                    btn.innerText = "ACTIVAR MIC";
+                    btn.style.background = "#2ed573";
+                }
+            } else {
+                // Silenciar audio remoto (solo para ti)
+                const user = remoteUsers[id];
+                if (user && user.audioTrack) {
+                    if (user.audioTrack.isPlaying) {
+                        user.audioTrack.stop();
+                        btn.innerText = "ESCUCHAR";
+                        btn.style.background = "#2ed573";
+                    } else {
+                        user.audioTrack.play();
+                        btn.innerText = "SILENCIAR";
+                        btn.style.background = "rgba(255, 71, 87, 0.8)";
+                    }
+                }
+            }
         }
 
         async function salirDeSala() {
-            for (let trackName in localTracks) {
-                if (localTracks[trackName]) {
-                    localTracks[trackName].stop();
-                    localTracks[trackName].close();
-                    localTracks[trackName] = null;
+            for (let track in localTracks) {
+                if (localTracks[track]) {
+                    localTracks[track].stop();
+                    localTracks[track].close();
                 }
             }
             await client.leave();
-            document.getElementById("video-grid").innerHTML = "";
-            document.getElementById('joinBtn').style.display = "block";
-            document.getElementById('leaveBtn').style.display = "none";
-            document.getElementById('status').innerText = "Has salido de la sala";
+            location.reload(); // Recargar para volver al botón de inicio
         }
     </script>
 </body>
