@@ -101,11 +101,15 @@
             padding: 15px; 
             display: flex; 
             justify-content: center; 
+            gap: 15px; /* Espacio entre botones */
             border-top: 1px solid #333;
         }
 
         .leave-btn { background: #ff4757; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         
+        /* Botón azul para PiP */
+        .pip-btn { background: #3498db; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; display: none; }
+
         #status { position: absolute; top: 10px; left: 10px; font-size: 12px; color: #00ff88; z-index: 10; }
     </style>
 </head>
@@ -120,6 +124,7 @@
     <div id="video-grid"></div>
 
     <div id="footerControls" class="controls-bar" style="display: none;">
+        <button id="pipBtn" class="pip-btn" onclick="activarPiP()">FLOTANTE</button>
         <button class="leave-btn" onclick="salirDeSala()">ABANDONAR SALA</button>
     </div>
 
@@ -131,15 +136,11 @@
         let localTracks = { videoTrack: null, audioTrack: null };
         let remoteUsers = {}; 
 
-        // DETECTOR DE VISIBILIDAD: Intenta recuperar la cámara al volver
-        document.addEventListener("visibilitychange", async () => {
-            if (document.visibilityState === 'visible') {
-                if (localTracks.videoTrack) {
-                    await localTracks.videoTrack.setEnabled(true);
-                    console.log("Cámara reactivada al volver");
-                }
-            }
-        });
+        // Verificación de compatibilidad PiP
+        if (!('pictureInPictureEnabled' in document)) {
+            console.log("Este navegador no soporta Picture-in-Picture.");
+            document.getElementById('pipBtn').style.display = 'none';
+        }
 
         async function unirseASala() {
             try {
@@ -163,14 +164,17 @@
 
                 await client.join(APP_ID, CHANNEL, null);
                 
-                // Pedimos permisos con configuraciones de persistencia
-                localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-                    AEC: true, ANS: true, AGC: true
-                });
+                // Audio persistente para Android
+                localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack({ AEC: true, ANS: true, AGC: true });
                 localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack();
 
                 document.getElementById('joinArea').style.display = "none";
                 document.getElementById('footerControls').style.display = "flex";
+                
+                // Mostrar botón PiP si está soportado
+                if ('pictureInPictureEnabled' in document) {
+                    document.getElementById('pipBtn').style.display = 'block';
+                }
 
                 crearContenedorVideo("local-user", true);
                 localTracks.videoTrack.play("local-user-video");
@@ -211,6 +215,24 @@
             grid.appendChild(container);
         }
 
+        // Función para activar el modo flotante (PiP)
+        async function activarPiP() {
+            try {
+                // Buscamos el elemento video que Agora ha creado dentro de nuestro contenedor
+                const videoElement = document.getElementById("local-user-video").getElementsByTagName("video")[0];
+
+                if (videoElement && document.pictureInPictureEnabled && !document.pictureInPictureElement) {
+                    await videoElement.requestPictureInPicture();
+                    console.log("Modo PiP activado.");
+                } else if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                    console.log("Modo PiP desactivado.");
+                }
+            } catch (error) {
+                console.error("Error al activar PiP:", error);
+            }
+        }
+
         async function togglemute(id, isLocal, btn) {
             if (isLocal) {
                 if (localTracks.audioTrack.muted) {
@@ -239,6 +261,11 @@
         }
 
         async function salirDeSala() {
+            // Salir del PiP si está activo
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            }
+
             for (let track in localTracks) {
                 if (localTracks[track]) {
                     localTracks[track].stop();
