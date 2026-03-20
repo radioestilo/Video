@@ -17,33 +17,38 @@
             overflow: hidden;
         }
 
-        /* Ajuste para centrar las cámaras cuando hay 1 o 2 personas */
+        /* Configuración de 2 columnas fijas y centradas */
         #video-grid { 
             display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(45%, 1fr)); 
-            max-width: 1200px;
+            grid-template-columns: 1fr 1fr; /* Dos columnas exactas */
+            max-width: 1000px;
             margin: 0 auto;
-            gap: 15px; 
-            padding: 15px; 
+            gap: 10px; 
+            padding: 10px; 
             flex-grow: 1;
             background: #111;
             overflow-y: auto;
-            align-content: center; /* Centra verticalmente */
-            justify-content: center; /* Centra horizontalmente */
+            align-content: center; /* Centra el grupo de cámaras verticalmente */
+            justify-content: center; /* Centra el grupo de cámaras horizontalmente */
             width: 100%;
         }
 
-        /* Cuadros 1:1 con límite de tamaño para que no se vean gigantes si hay uno solo */
+        /* Cuadros 1:1 que se adaptan a las 2 columnas */
         .video-player { 
             width: 100%; 
-            max-width: 500px;
             aspect-ratio: 1 / 1; 
             background: black; 
             border: 2px solid #00ff88; 
             border-radius: 12px; 
             overflow: hidden; 
             position: relative;
-            justify-self: center; /* Asegura que el cuadro individual se centre */
+        }
+
+        /* Si solo hay una persona, ocupa una columna pero se mantiene centrada */
+        .video-player:last-child:nth-child(odd) {
+            grid-column: 1 / span 2;
+            max-width: 50%; /* Evita que crezca demasiado si está solo */
+            justify-self: center;
         }
 
         video { object-fit: cover !important; }
@@ -163,7 +168,7 @@
                 });
             } catch (e) {
                 console.error(e);
-                alert("Error de acceso a cámara/micrófono.");
+                alert("Error de acceso a dispositivos.");
             }
         }
 
