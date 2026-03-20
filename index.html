@@ -3,107 +3,154 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monitoreo Total - Ricardo</title>
+    <title>Sala de Conferencias Pro - Ricardo</title>
     <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.11.0.js"></script>
     <style>
-        body { background: #0a0a0a; color: white; font-family: 'Segoe UI', sans-serif; text-align: center; padding: 15px; margin: 0; }
-        #video-container { width: 100%; max-width: 640px; height: 360px; background: #000; margin: 15px auto; border: 2px solid #00ff88; border-radius: 12px; overflow: hidden; position: relative; box-shadow: 0 0 20px rgba(0, 255, 136, 0.2); }
-        .controls { display: flex; flex-direction: column; gap: 12px; align-items: center; margin-top: 10px; }
-        button { width: 280px; padding: 16px; border: none; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        .cam-btn { background: #ff4757; color: white; }
-        .mon-btn { background: #2ed573; color: white; }
-        .audio-btn { background: #1e90ff; color: white; display: none; }
-        #status { margin-top: 15px; color: #aaa; font-size: 14px; font-weight: bold; }
+        body { 
+            background: #0a0a0a; 
+            color: white; 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 0; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh;
+        }
+
+        /* Contenedor dinámico de cuadrícula */
+        #video-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 10px; 
+            padding: 10px; 
+            flex-grow: 1;
+            background: #111;
+            align-content: center;
+            justify-content: center;
+        }
+
+        /* Estilo para cada cuadro de video (Relación 1:1) */
+        .video-player { 
+            width: 100%; 
+            aspect-ratio: 1 / 1; 
+            background: black; 
+            border: 2px solid #00ff88; 
+            border-radius: 8px; 
+            overflow: hidden; 
+            position: relative;
+        }
+
         video { object-fit: cover !important; }
+
+        .controls { 
+            background: #1a1a1a; 
+            padding: 20px; 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px;
+            border-top: 1px solid #333;
+        }
+
+        button { 
+            padding: 15px 30px; 
+            border: none; 
+            border-radius: 50px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            transition: 0.3s;
+        }
+
+        .join-btn { background: #00ff88; color: #000; }
+        .leave-btn { background: #ff4757; color: white; display: none; }
+        
+        #status { position: absolute; top: 10px; left: 10px; font-size: 12px; color: #00ff88; z-index: 10; }
     </style>
 </head>
 <body>
 
-    <h2 style="color: #00ff88;">SISTEMA DE VIGILANCIA TOTAL</h2>
-    
-    <div id="video-container">
+    <div id="status">Desconectado</div>
+    <div id="video-grid">
         </div>
 
     <div class="controls">
-        <button class="cam-btn" onclick="iniciarCamara()">1. ACTIVAR COMO CÁMARA</button>
-        <hr style="width: 280px; border: 0.5px solid #333;">
-        <button class="mon-btn" onclick="iniciarMonitor()">2. ENTRAR COMO MONITOR</button>
-        <button id="audioBtn" class="audio-btn" onclick="activarAudio()">🔊 ACTIVAR SONIDO</button>
+        <button id="joinBtn" class="join-btn" onclick="unirseASala()">UNIRSE A LA CONFERENCIA</button>
+        <button id="leaveBtn" class="leave-btn" onclick="salirDeSala()">ABANDONAR</button>
     </div>
-
-    <p id="status">Esperando conexión...</p>
 
     <script>
         const APP_ID = "4c0f8c14a76d4a33a53972aaa48519a4"; 
-        const CHANNEL = "canal_monitoreo_ricardo";
+        const CHANNEL = "sala_conferencias_ricardo";
         
-        const client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
+        // Modo 'rtc' es para conferencias grupales de baja latencia
+        const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         let localTracks = { videoTrack: null, audioTrack: null };
-        let remoteUser = null;
 
-        // --- MODO TRANSMISOR (LA CÁMARA) ---
-        async function iniciarCamara() {
+        async function unirseASala() {
             try {
-                actualizarEstado("Iniciando cámara y micrófono...", "yellow");
-                await client.setClientRole("host");
+                // 1. Unirse al canal
                 await client.join(APP_ID, CHANNEL, null);
                 
-                // Creamos video Y audio
+                // 2. Crear pistas de audio y video
                 localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
                 localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack();
-                
-                localTracks.videoTrack.play("video-container");
-                
-                // Publicamos ambos
+
+                // 3. Crear el contenedor para MI video
+                crearContenedorVideo("local-user");
+                localTracks.videoTrack.play("local-user");
+
+                // 4. Publicar mis pistas para que otros me vean/escuchen
                 await client.publish([localTracks.audioTrack, localTracks.videoTrack]);
-                
-                actualizarEstado("EN VIVO: Transmitiendo video y audio", "#ff4757");
-            } catch (e) {
-                console.error(e);
-                alert("Error al acceder a los dispositivos. Revisa los permisos.");
-            }
-        }
 
-        // --- MODO RECEPTOR (EL MONITOR) ---
-        async function iniciarMonitor() {
-            try {
-                actualizarEstado("Conectando al canal...", "yellow");
-                await client.setClientRole("audience");
-                await client.join(APP_ID, CHANNEL, null);
+                // Ajustar interfaz
+                document.getElementById('joinBtn').style.display = "none";
+                document.getElementById('leaveBtn').style.display = "block";
+                document.getElementById('status').innerText = "CONECTADO EN SALA";
 
+                // 5. Manejar usuarios que se unen
                 client.on("user-published", async (user, mediaType) => {
                     await client.subscribe(user, mediaType);
-                    remoteUser = user;
-
+                    
                     if (mediaType === "video") {
-                        actualizarEstado("VIGILANCIA ACTIVA", "#2ed573");
-                        user.videoTrack.play("video-container");
+                        crearContenedorVideo(user.uid);
+                        user.videoTrack.play(user.uid.toString());
                     }
                     if (mediaType === "audio") {
-                        // Mostramos el botón para activar el sonido manualmente
-                        document.getElementById('audioBtn').style.display = "block";
+                        user.audioTrack.play();
                     }
                 });
 
-                actualizarEstado("Buscando señal...", "#aaa");
+                // 6. Manejar usuarios que se van
+                client.on("user-left", (user) => {
+                    const player = document.getElementById(user.uid);
+                    if (player) player.remove();
+                });
+
             } catch (e) {
                 console.error(e);
-                alert("Error en el monitor.");
+                alert("Error al unirse: Revisa cámara y micrófono.");
             }
         }
 
-        function activarAudio() {
-            if (remoteUser && remoteUser.audioTrack) {
-                remoteUser.audioTrack.play();
-                document.getElementById('audioBtn').innerText = "🔊 AUDIO ACTIVADO";
-                document.getElementById('audioBtn').style.background = "#57606f";
-            }
+        function crearContenedorVideo(id) {
+            if (document.getElementById(id)) return;
+            const videoDiv = document.createElement("div");
+            videoDiv.id = id;
+            videoDiv.className = "video-player";
+            document.getElementById("video-grid").appendChild(videoDiv);
         }
 
-        function actualizarEstado(txt, color) {
-            const s = document.getElementById('status');
-            s.innerText = txt;
-            s.style.color = color;
+        async function salirDeSala() {
+            for (let trackName in localTracks) {
+                if (localTracks[trackName]) {
+                    localTracks[trackName].stop();
+                    localTracks[trackName].close();
+                    localTracks[trackName] = null;
+                }
+            }
+            await client.leave();
+            document.getElementById("video-grid").innerHTML = "";
+            document.getElementById('joinBtn').style.display = "block";
+            document.getElementById('leaveBtn').style.display = "none";
+            document.getElementById('status').innerText = "Has salido de la sala";
         }
     </script>
 </body>
