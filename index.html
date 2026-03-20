@@ -17,52 +17,55 @@
             overflow: hidden;
         }
 
-        /* Cuadrícula de 2 columnas fijas como solicitaste */
+        /* Ajuste para centrar las cámaras cuando hay 1 o 2 personas */
         #video-grid { 
             display: grid; 
-            grid-template-columns: repeat(2, 1fr); 
-            gap: 10px; 
-            padding: 10px; 
+            grid-template-columns: repeat(auto-fit, minmax(45%, 1fr)); 
+            max-width: 1200px;
+            margin: 0 auto;
+            gap: 15px; 
+            padding: 15px; 
             flex-grow: 1;
             background: #111;
             overflow-y: auto;
-            align-content: start;
+            align-content: center; /* Centra verticalmente */
+            justify-content: center; /* Centra horizontalmente */
+            width: 100%;
         }
 
-        /* Cuadros 1:1 que cubren el 50% del ancho cada uno */
+        /* Cuadros 1:1 con límite de tamaño para que no se vean gigantes si hay uno solo */
         .video-player { 
             width: 100%; 
+            max-width: 500px;
             aspect-ratio: 1 / 1; 
             background: black; 
             border: 2px solid #00ff88; 
-            border-radius: 8px; 
+            border-radius: 12px; 
             overflow: hidden; 
             position: relative;
+            justify-self: center; /* Asegura que el cuadro individual se centre */
         }
 
         video { object-fit: cover !important; }
 
-        /* Controles individuales por usuario */
         .user-controls {
             position: absolute;
             bottom: 10px;
             left: 10px;
             z-index: 10;
-            display: flex;
-            gap: 5px;
         }
 
         .mute-btn {
             background: rgba(255, 71, 87, 0.8);
             color: white;
             border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
+            padding: 8px 12px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
+            font-weight: bold;
         }
 
-        /* Botón con destellos de colores */
         .join-container {
             position: fixed;
             top: 50%;
@@ -96,11 +99,10 @@
             padding: 15px; 
             display: flex; 
             justify-content: center; 
-            gap: 20px;
             border-top: 1px solid #333;
         }
 
-        .leave-btn { background: #ff4757; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        .leave-btn { background: #ff4757; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         
         #status { position: absolute; top: 10px; left: 10px; font-size: 12px; color: #00ff88; z-index: 10; }
     </style>
@@ -125,30 +127,25 @@
         
         const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
         let localTracks = { videoTrack: null, audioTrack: null };
-        let remoteUsers = {}; // Para guardar referencia a los audios remotos
+        let remoteUsers = {}; 
 
         async function unirseASala() {
             try {
                 await client.join(APP_ID, CHANNEL, null);
-                
                 localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
                 localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack();
 
-                // Ocultar botón de inicio y mostrar controles
                 document.getElementById('joinArea').style.display = "none";
                 document.getElementById('footerControls').style.display = "flex";
 
-                // Crear mi video
                 crearContenedorVideo("local-user", true);
                 localTracks.videoTrack.play("local-user-video");
 
                 await client.publish([localTracks.audioTrack, localTracks.videoTrack]);
                 document.getElementById('status').innerText = "CONECTADO";
 
-                // Manejar otros usuarios
                 client.on("user-published", async (user, mediaType) => {
                     await client.subscribe(user, mediaType);
-                    
                     if (mediaType === "video") {
                         crearContenedorVideo(user.uid, false);
                         user.videoTrack.play(user.uid + "-video");
@@ -164,10 +161,9 @@
                     if (player) player.remove();
                     delete remoteUsers[user.uid];
                 });
-
             } catch (e) {
                 console.error(e);
-                alert("Error de acceso.");
+                alert("Error de acceso a cámara/micrófono.");
             }
         }
 
@@ -184,7 +180,6 @@
             videoArea.style.width = "100%";
             videoArea.style.height = "100%";
 
-            // Botón de silenciar individual
             const controls = document.createElement("div");
             controls.className = "user-controls";
             
@@ -211,7 +206,6 @@
                     btn.style.background = "#2ed573";
                 }
             } else {
-                // Silenciar audio remoto (solo para ti)
                 const user = remoteUsers[id];
                 if (user && user.audioTrack) {
                     if (user.audioTrack.isPlaying) {
@@ -235,7 +229,7 @@
                 }
             }
             await client.leave();
-            location.reload(); // Recargar para volver al botón de inicio
+            location.reload();
         }
     </script>
 </body>
