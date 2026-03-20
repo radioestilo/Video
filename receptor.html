@@ -1,35 +1,117 @@
-<video id="remoteVideo" autoplay playsinline muted style="width: 90%; max-height: 70vh; border: 3px solid #333; border-radius: 15px;"></video>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - RICARDOCASTELLAR</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        #monitor-container {
+            width: 90%;
+            max-width: 800px;
+            border: 2px solid #333;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #111;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.1);
+        }
+        video {
+            width: 100%;
+            display: block;
+            background: #000;
+        }
+        .controls {
+            padding: 20px;
+            text-align: center;
+        }
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        #status {
+            margin-top: 15px;
+            color: #888;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
 
-<script>
-    const remoteVideo = document.getElementById('remoteVideo');
-    const info = document.getElementById('info');
-    
-    // Agregamos un servidor STUN público por si estás usando datos móviles (4G)
-    const peer = new Peer({
-        config: {'iceServers': [
-            { url: 'stun:stun.l.google.com:19302' },
-            { url: 'stun:stun1.l.google.com:19302' }
-        ]}
-    });
-
-    function conectar() {
-        info.innerText = "Conectando con RICARDOCASTELLAR...";
+    <div id="monitor-container">
+        <video id="remoteVideo" autoplay playsinline muted></video>
         
-        // Intentamos la llamada
-        const call = peer.call('RICARDOCASTELLAR', new MediaStream());
+        <div class="controls">
+            <button id="connectBtn">CONECTAR AL SITIO</button>
+            <p id="status">Estado: Listo para conectar con RICARDOCASTELLAR</p>
+        </div>
+    </div>
 
-        call.on('stream', (remoteStream) => {
-            info.innerText = "¡CONECTADO!";
-            remoteVideo.srcObject = remoteStream;
+    <script>
+        const remoteVideo = document.getElementById('remoteVideo');
+        const status = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+
+        // Configuración con servidores STUN para conectar a través de internet (fuera de red local)
+        const peer = new Peer({
+            config: {
+                'iceServers': [
+                    { url: 'stun:stun.l.google.com:19302' },
+                    { url: 'stun:stun1.l.google.com:19302' },
+                    { url: 'stun:stun2.l.google.com:19302' }
+                ]
+            }
+        });
+
+        connectBtn.addEventListener('click', () => {
+            status.innerText = "Buscando cámara: RICARDOCASTELLAR...";
             
-            // Forzamos el play por si el navegador lo detuvo
-            remoteVideo.play().catch(e => console.log("Error en auto-play:", e));
+            // Llamamos a la cámara. Enviamos un flujo vacío porque solo queremos recibir.
+            const call = peer.call('RICARDOCASTELLAR', new MediaStream());
+
+            call.on('stream', (remoteStream) => {
+                status.innerText = "¡CONEXIÓN ESTABLECIDA!";
+                status.style.color = "#28a745";
+                
+                // Asignamos el video
+                remoteVideo.srcObject = remoteStream;
+                
+                // Intentamos quitar el 'muted' después de conectar
+                remoteVideo.muted = false; 
+                remoteVideo.play().catch(e => console.warn("Autoplay bloqueó el audio, pero el video debería verse."));
+            });
+
+            call.on('error', (err) => {
+                status.innerText = "Error: " + err.type;
+                status.style.color = "#ff4444";
+                console.error(err);
+            });
         });
 
-        // Si hay error de conexión
-        peer.on('error', (err) => {
-            info.innerText = "Error: " + err.type;
-            console.error(err);
+        // Detectar si la cámara se desconecta
+        peer.on('disconnected', () => {
+            status.innerText = "Cámara desconectada.";
+            status.style.color = "#ff4444";
         });
-    }
-</script>
+    </script>
+</body>
+</html>
