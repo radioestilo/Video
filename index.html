@@ -17,7 +17,6 @@
             overflow: hidden;
         }
 
-        /* Configuración de 2 columnas fijas y centradas */
         #video-grid { 
             display: grid; 
             grid-template-columns: 1fr 1fr; 
@@ -43,7 +42,6 @@
             position: relative;
         }
 
-        /* Si solo hay una persona, se mantiene centrada */
         .video-player:last-child:nth-child(odd) {
             grid-column: 1 / span 2;
             max-width: 50%; 
@@ -133,9 +131,18 @@
         let localTracks = { videoTrack: null, audioTrack: null };
         let remoteUsers = {}; 
 
+        // DETECTOR DE VISIBILIDAD: Intenta recuperar la cámara al volver
+        document.addEventListener("visibilitychange", async () => {
+            if (document.visibilityState === 'visible') {
+                if (localTracks.videoTrack) {
+                    await localTracks.videoTrack.setEnabled(true);
+                    console.log("Cámara reactivada al volver");
+                }
+            }
+        });
+
         async function unirseASala() {
             try {
-                // Configuramos los eventos ANTES de unirse para no perder a nadie
                 client.on("user-published", async (user, mediaType) => {
                     await client.subscribe(user, mediaType);
                     if (mediaType === "video") {
@@ -154,21 +161,20 @@
                     delete remoteUsers[user.uid];
                 });
 
-                // Unirse al canal
                 await client.join(APP_ID, CHANNEL, null);
                 
-                // Activar mi propia cámara y micro
-                localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+                // Pedimos permisos con configuraciones de persistencia
+                localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+                    AEC: true, ANS: true, AGC: true
+                });
                 localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack();
 
                 document.getElementById('joinArea').style.display = "none";
                 document.getElementById('footerControls').style.display = "flex";
 
-                // Crear mi propio cuadro
                 crearContenedorVideo("local-user", true);
                 localTracks.videoTrack.play("local-user-video");
 
-                // Publicar mis pistas para los demás
                 await client.publish([localTracks.audioTrack, localTracks.videoTrack]);
                 document.getElementById('status').innerText = "CONECTADO";
 
