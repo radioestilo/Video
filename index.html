@@ -103,11 +103,15 @@
             padding: 15px; 
             display: flex; 
             justify-content: center; 
+            gap: 15px;
             border-top: 1px solid #333;
         }
 
         .leave-btn { background: #ff4757; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; }
         
+        /* Botón azul para PiP (Flotante) */
+        .pip-btn { background: #3498db; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: bold; display: none; }
+
         #status { position: absolute; top: 10px; left: 10px; font-size: 12px; color: #00ff88; z-index: 10; }
     </style>
 </head>
@@ -122,6 +126,7 @@
     <div id="video-grid"></div>
 
     <div id="footerControls" class="controls-bar" style="display: none;">
+        <button id="pipBtn" class="pip-btn" onclick="activarPiP()">FLOTANTE</button>
         <button class="leave-btn" onclick="salirDeSala()">ABANDONAR SALA</button>
     </div>
 
@@ -133,9 +138,15 @@
         let localTracks = { videoTrack: null, audioTrack: null };
         let remoteUsers = {}; 
 
+        // Escuchar cambios de visibilidad para mantener la conexión en la APK
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                console.log("APK en segundo plano - Manteniendo audio activo");
+            }
+        });
+
         async function unirseASala() {
             try {
-                // Configuramos los eventos ANTES de unirse para no perder a nadie
                 client.on("user-published", async (user, mediaType) => {
                     await client.subscribe(user, mediaType);
                     if (mediaType === "video") {
@@ -154,21 +165,25 @@
                     delete remoteUsers[user.uid];
                 });
 
-                // Unirse al canal
                 await client.join(APP_ID, CHANNEL, null);
                 
-                // Activar mi propia cámara y micro
-                localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+                // Optimizamos el audio para ejecución en segundo plano en la APK
+                localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+                    AEC: true, ANS: true, AGC: true
+                });
                 localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack();
 
                 document.getElementById('joinArea').style.display = "none";
                 document.getElementById('footerControls').style.display = "flex";
 
-                // Crear mi propio cuadro
+                // Mostrar botón PiP si el navegador de la APK lo permite
+                if (document.pictureInPictureEnabled) {
+                    document.getElementById('pipBtn').style.display = "block";
+                }
+
                 crearContenedorVideo("local-user", true);
                 localTracks.videoTrack.play("local-user-video");
 
-                // Publicar mis pistas para los demás
                 await client.publish([localTracks.audioTrack, localTracks.videoTrack]);
                 document.getElementById('status').innerText = "CONECTADO";
 
@@ -205,6 +220,25 @@
             grid.appendChild(container);
         }
 
+        // Función para activar el modo flotante en la APK
+        async function activarPiP() {
+            try {
+                // Seleccionamos el elemento de video creado por Agora
+                const videoElement = document.getElementById("local-user-video").querySelector("video");
+
+                if (videoElement) {
+                    if (document.pictureInPictureElement) {
+                        await document.exitPictureInPicture();
+                    } else {
+                        await videoElement.requestPictureInPicture();
+                    }
+                }
+            } catch (error) {
+                console.error("Error al activar modo flotante:", error);
+                alert("Para usar el modo flotante, concede el permiso 'Aparecer encima' en los ajustes de la App.");
+            }
+        }
+
         async function togglemute(id, isLocal, btn) {
             if (isLocal) {
                 if (localTracks.audioTrack.muted) {
@@ -233,6 +267,9 @@
         }
 
         async function salirDeSala() {
+            if (document.pictureInPictureElement) {
+                await document.exitPictureInPicture();
+            }
             for (let track in localTracks) {
                 if (localTracks[track]) {
                     localTracks[track].stop();
