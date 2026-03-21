@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sala Pro - Ricardo (Corrección Cámara + Grande 9:16)</title>
+    <title>Sala Pro - Ricardo (9:16 Dual Column)</title>
     <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.11.0.js"></script>
     <style>
         body { 
@@ -17,54 +17,52 @@
             overflow: hidden;
         }
 
-        /* Configuración Grid Flexible para 9:16 */
+        /* Grid optimizado para 2 columnas fijas y formato 9:16 */
         #video-grid { 
             display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); 
-            max-width: 1400px;
+            grid-template-columns: repeat(2, 1fr); /* Fuerza las 2 columnas */
+            max-width: 900px; /* Ajuste para que no se estiren demasiado en horizontal */
             margin: 0 auto;
-            gap: 15px; 
-            padding: 15px; 
+            gap: 10px; 
+            padding: 10px; 
             flex-grow: 1;
             background: #111;
             overflow-y: auto;
-            align-content: center; 
+            align-content: center; /* Centra el bloque de videos verticalmente */
             justify-content: center; 
             width: 100%;
         }
 
-        /* Cuadros Verticales 9:16 base */
+        /* Cuadros estrictamente 9:16 */
         .video-player { 
             width: 100%; 
-            aspect-ratio: 9 / 16; /* Formato vertical vertical */
+            aspect-ratio: 9 / 16; 
             background: black; 
             border: 2px solid #00ff88; 
             border-radius: 12px; 
             overflow: hidden; 
             position: relative;
             justify-self: center;
-            cursor: pointer; /* Indica que se puede hacer clic */
-            transition: all 0.3s ease-out; /* Animación suave */
+            cursor: pointer;
+            transition: all 0.3s ease-out;
+        }
+
+        /* Lógica para cuando hay una sola persona: se centra en las dos columnas */
+        .video-player:first-child:last-child {
+            grid-column: 1 / span 2;
+            max-width: 50%; /* Evita que ocupe todo el ancho y pierda el sentido 9:16 */
         }
 
         /* Estilo para el video maximizado */
         .video-player.maximized {
-            grid-column: 1 / -1; /* Ocupa todo el ancho */
-            max-width: 80% !important; /* Limita el tamaño en grande */
-            border: 4px solid #3498db; /* Color de borde azul para el maximizado */
-            border-radius: 20px;
-            z-index: 50; /* Superpone a los demás */
-        }
-
-        /* Ajustes de cuadrícula para 2 personas base */
-        .video-player:last-child:nth-child(2),
-        .video-player:first-child:nth-child(2) {
-            max-width: 90%;
+            grid-column: 1 / span 2 !important;
+            max-width: 85% !important;
+            border: 4px solid #3498db;
+            z-index: 50;
         }
 
         video { object-fit: cover !important; }
 
-        /* Controles sobre el video */
         .user-controls {
             position: absolute;
             bottom: 15px;
@@ -86,7 +84,7 @@
             background: rgba(255, 71, 87, 0.8);
             color: white;
             padding: 8px 12px;
-            font-size: 12px;
+            font-size: 11px;
         }
 
         .switch-btn {
@@ -131,9 +129,7 @@
         }
 
         .leave-btn { background: #ff4757; color: white; padding: 12px 25px; border-radius: 8px; }
-        
         .pip-btn { background: #3498db; color: white; padding: 12px 25px; border-radius: 8px; display: none; }
-
         #status { position: absolute; top: 10px; left: 10px; font-size: 12px; color: #00ff88; z-index: 10; }
     </style>
 </head>
@@ -161,18 +157,14 @@
         let remoteUsers = {}; 
         let videoCameras = [];
         let currentCameraIndex = 0;
-        let maximizedPlayerId = null; // Guardar ID del video en grande
+        let maximizedPlayerId = null;
 
-        // Escuchar cambios de visibilidad para mantener la conexión en la APK (Median)
         document.addEventListener("visibilitychange", () => {
-            if (document.hidden) {
-                console.log("APK en segundo plano - Manteniendo audio activo");
-            }
+            if (document.hidden) console.log("APK en segundo plano");
         });
 
         async function unirseASala() {
             try {
-                // Configuramos los eventos ANTES de unirse para no perder a nadie
                 client.on("user-published", async (user, mediaType) => {
                     await client.subscribe(user, mediaType);
                     if (mediaType === "video") {
@@ -188,50 +180,33 @@
                 client.on("user-left", (user) => {
                     const player = document.getElementById(user.uid);
                     if (player) {
-                        // Si se va el usuario maximizado, resetear
-                        if (user.uid === maximizedPlayerId) {
-                            toggleMaximizar(user.uid);
-                        }
+                        if (user.uid === maximizedPlayerId) toggleMaximizar(user.uid);
                         player.remove();
                     }
                     delete remoteUsers[user.uid];
                 });
 
                 await client.join(APP_ID, CHANNEL, null);
-                
-                // Optimizamos el audio para Median (segundo plano) y AEC/ANS
                 localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack({ AEC: true, ANS: true, AGC: true });
-                
-                // Detectar todas las cámaras disponibles antes de iniciar video
                 videoCameras = await AgoraRTC.getCameras();
                 
                 if (videoCameras.length > 0) {
-                    // Iniciar con la primera cámara (generalmente la frontal)
                     localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack({ cameraId: videoCameras[currentCameraIndex].deviceId });
-                } else {
-                    alert("No se detectó cámara en el dispositivo.");
-                    salirDeSala();
-                    return;
                 }
 
                 document.getElementById('joinArea').style.display = "none";
                 document.getElementById('footerControls').style.display = "flex";
                 
-                // Mostrar botón PiP si está soportado en la APK
-                if (document.pictureInPictureEnabled) {
-                    document.getElementById('pipBtn').style.display = "block";
-                }
+                if (document.pictureInPictureEnabled) document.getElementById('pipBtn').style.display = "block";
 
                 crearContenedorVideo("local-user", true);
                 localTracks.videoTrack.play("local-user-video");
 
-                // Publicar tracks
                 await client.publish([localTracks.audioTrack, localTracks.videoTrack]);
                 document.getElementById('status').innerText = "CONECTADO";
 
             } catch (e) {
                 console.error(e);
-                alert("Error al conectar: Asegúrate de dar permisos de cámara y micrófono.");
                 location.reload();
             }
         }
@@ -243,12 +218,8 @@
             const container = document.createElement("div");
             container.id = id;
             container.className = "video-player";
-            // Lógica para maximizar/grande al hacer clic
             container.onclick = (e) => {
-                // Evitar maximizar si se hace clic en el botón de silenciar/voltear
-                if (e.target.tagName !== 'BUTTON') {
-                    toggleMaximizar(id);
-                }
+                if (e.target.tagName !== 'BUTTON') toggleMaximizar(id);
             };
 
             const videoArea = document.createElement("div");
@@ -264,7 +235,6 @@
             muteBtn.innerText = "SILENCIAR";
             muteBtn.onclick = () => togglemute(id, isLocal, muteBtn);
 
-            // Botón de voltear cámara (🔄) - Solo local y si hay cámaras
             if (isLocal && videoCameras.length > 1) {
                 const switchBtn = document.createElement("button");
                 switchBtn.className = "switch-btn";
@@ -280,88 +250,59 @@
             grid.appendChild(container);
         }
 
-        // Función para cambiar entre cámara frontal y trasera (REVISADA)
         async function voltearCamara() {
             try {
                 if (localTracks.videoTrack && videoCameras.length > 1) {
-                    // Detener y cerrar la track de video actual (FORZADO)
                     await client.unpublish([localTracks.videoTrack]);
                     localTracks.videoTrack.stop();
                     localTracks.videoTrack.close();
-
-                    // Cambiar el índice de la cámara
                     currentCameraIndex = (currentCameraIndex + 1) % videoCameras.length;
-                    
-                    // Crear nueva track de video con la cámara elegida (FORZADO)
                     localTracks.videoTrack = await AgoraRTC.createCameraVideoTrack({ cameraId: videoCameras[currentCameraIndex].deviceId });
-                    
-                    // Reproducir de nuevo en el cuadro local
                     localTracks.videoTrack.play("local-user-video");
-                    
-                    // Re-publicar la nueva track de video
                     await client.publish([localTracks.videoTrack]);
-                    console.log("Cámara cambiada a: " + videoCameras[currentCameraIndex].label);
                 }
             } catch (error) {
-                // Mismo mensaje de error que te dio pero con más información técnica
-                console.error("Error crítico al voltear cámara:", error);
-                alert("Brave bloqueó el cambio de cámara en entorno local. Este error no debería aparecer en la APK o HTTPS.");
+                console.error(error);
             }
         }
 
-        // Función para maximizar (Grande 9:16)
         function toggleMaximizar(id) {
             const grid = document.getElementById('video-grid');
             const targetPlayer = document.getElementById(id);
-            const status = document.getElementById('status');
 
-            // Si hay uno maximizado y se toca otro, resetear
             if (maximizedPlayerId && maximizedPlayerId !== id) {
                 document.getElementById(maximizedPlayerId).classList.remove('maximized');
             }
 
-            // Maximizar o resetear el video tocado
             targetPlayer.classList.toggle('maximized');
 
             if (targetPlayer.classList.contains('maximized')) {
                 maximizedPlayerId = id;
-                grid.style.alignContent = 'start'; // Para que no se corte en grande
-                status.innerText = "Video Grande (Manteniendo 9:16)";
+                grid.style.alignContent = 'start';
             } else {
                 maximizedPlayerId = null;
-                grid.style.alignContent = 'center'; // Volver al centrado normal
-                status.innerText = "CONECTADO";
+                grid.style.alignContent = 'center';
             }
         }
 
-        // Función para PiP (Flotante) en APK
         async function activarPiP() {
             try {
                 const videoElement = document.getElementById("local-user-video").querySelector("video");
                 if (videoElement) {
-                    if (document.pictureInPictureElement) {
-                        await document.exitPictureInPicture();
-                    } else {
-                        await videoElement.requestPictureInPicture();
-                    }
+                    if (document.pictureInPictureElement) await document.exitPictureInPicture();
+                    else await videoElement.requestPictureInPicture();
                 }
             } catch (error) {
-                console.error("Error al activar modo flotante:", error);
-                alert("Para usar el modo flotante, concede el permiso 'Aparecer encima' y 'PiP' en los ajustes de la APK.");
+                console.error(error);
             }
         }
 
         async function togglemute(id, isLocal, btn) {
             if (isLocal) {
-                if (localTracks.audioTrack.muted) {
-                    await localTracks.audioTrack.setMuted(false);
-                    btn.innerText = "SILENCIAR";
-                    btn.style.background = "rgba(255, 71, 87, 0.8)";
-                } else {
-                    await localTracks.audioTrack.setMuted(true);
-                    btn.innerText = "ACTIVAR MIC";
-                    btn.style.background = "#2ed573";
-                }
+                const muted = !localTracks.audioTrack.muted;
+                await localTracks.audioTrack.setMuted(muted);
+                btn.innerText = muted ? "ACTIVAR MIC" : "SILENCIAR";
+                btn.style.background = muted ? "#2ed573" : "rgba(255, 71, 87, 0.8)";
             } else {
                 const user = remoteUsers[id];
                 if (user && user.audioTrack) {
@@ -379,14 +320,8 @@
         }
 
         async function salirDeSala() {
-            if (document.pictureInPictureElement) {
-                await document.exitPictureInPicture();
-            }
-            // Resetear maximizado si lo hay
-            if (maximizedPlayerId) {
-                toggleMaximizar(maximizedPlayerId);
-            }
-
+            if (document.pictureInPictureElement) await document.exitPictureInPicture();
+            if (maximizedPlayerId) toggleMaximizar(maximizedPlayerId);
             for (let track in localTracks) {
                 if (localTracks[track]) {
                     localTracks[track].stop();
